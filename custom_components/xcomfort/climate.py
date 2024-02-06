@@ -52,7 +52,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
         if config_entry.data["heating_zone0"]!='':
             zone_name = next(x for x in coordinator.xc.zones_list if x['zoneId']==config_entry.data["heating_zone0"])['zoneName']
             async_add_entities([xcThermostat(coordinator, config_entry.data["heating_zone0_radiator"],
-                zone_name, config_entry.data["heating_zone0"], True)])
+                zone_name, config_entry.data["heating_zone0"])])
     except:
         pass
 
@@ -60,14 +60,14 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
         if config_entry.data["heating_zone1"]!='':
             zone_name = next(x for x in coordinator.xc.zones_list if x['zoneId']==config_entry.data["heating_zone1"])['zoneName']
             async_add_entities([xcThermostat(coordinator, config_entry.data["heating_zone1_radiator"],
-                zone_name, config_entry.data["heating_zone1"], False)])
+                zone_name, config_entry.data["heating_zone1"])])
     except:
         pass
     try:
         if config_entry.data["heating_zone2"]!='':
             zone_name = next(x for x in coordinator.xc.zones_list if x['zoneId']==config_entry.data["heating_zone2"])['zoneName']
             async_add_entities([xcThermostat(coordinator, config_entry.data["heating_zone2_radiator"],
-                zone_name, config_entry.data["heating_zone2"], False)])
+                zone_name, config_entry.data["heating_zone2"])])
 
     except:
         pass
@@ -76,7 +76,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
         if config_entry.data["heating_zone3"]!='':
             zone_name = next(x for x in coordinator.xc.zones_list if x['zoneId']==config_entry.data["heating_zone3"])['zoneName']
             async_add_entities([xcThermostat(coordinator, config_entry.data["heating_zone3_radiator"],
-                zone_name, config_entry.data["heating_zone3"], False)])
+                zone_name, config_entry.data["heating_zone3"])])
     except:
         pass
 
@@ -84,7 +84,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
         if config_entry.data["heating_zone4"]!='':
             zone_name = next(x for x in coordinator.xc.zones_list if x['zoneId']==config_entry.data["heating_zone4"])['zoneName']
             async_add_entities([xcThermostat(coordinator, config_entry.data["heating_zone4_radiator"],
-                zone_name, config_entry.data["heating_zone4"], False)])
+                zone_name, config_entry.data["heating_zone4"])])
     except:
         pass
 
@@ -92,7 +92,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
         if config_entry.data["heating_zone5"]!='':
             zone_name = next(x for x in coordinator.xc.zones_list if x['zoneId']==config_entry.data["heating_zone5"])['zoneName']
             async_add_entities([xcThermostat(coordinator, config_entry.data["heating_zone5_radiator"],
-                zone_name, config_entry.data["heating_zone5"], False)])
+                zone_name, config_entry.data["heating_zone5"])])
     except:
         pass
 
@@ -100,7 +100,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
         if config_entry.data["heating_zone6"]!='':
             zone_name = next(x for x in coordinator.xc.zones_list if x['zoneId']==config_entry.data["heating_zone6"])['zoneName']
             async_add_entities([xcThermostat(coordinator, config_entry.data["heating_zone6_radiator"],
-                zone_name, config_entry.data["heating_zone6"], False)])
+                zone_name, config_entry.data["heating_zone6"])])
     except:
         pass
 
@@ -110,10 +110,11 @@ class xcThermostat(CoordinatorEntity, ClimateEntity):
     _attr_hvac_modes = [HVAC_MODE_HEAT, HVAC_MODE_OFF]
     _attr_supported_features = SUPPORT_TARGET_TEMPERATURE
     _attr_temperature_unit = TEMP_CELSIUS
-    _attr_max_temp = 24
+    _attr_max_temp = 25
     _attr_min_temp = 12
+    _attr_current__temperature = 12
 
-    def __init__(self, coordinator, id, name, heating_zone, rm):
+    def __init__(self, coordinator, id, name, heating_zone):
         super().__init__(coordinator)
         self.id = id
         self._attr_unique_id = 'climate'+id
@@ -122,10 +123,10 @@ class xcThermostat(CoordinatorEntity, ClimateEntity):
         self.last_message_time = ''
         self.messages_per_day = ''
         self.temp_pos = 0
+        self.wheel_temp = 0.0
         self._active = False
         self._cur_temp = None
         self._heating_zone = heating_zone
-        self._rm = rm
         coordinator.xc.add_heating_zone(heating_zone)
         self._update_attr()
 
@@ -140,7 +141,7 @@ class xcThermostat(CoordinatorEntity, ClimateEntity):
 
 
     async def async_set_temperature(self, **kwargs):
-        await self.coordinator.xc.set_temperture(self._heating_zone, kwargs.get(ATTR_TEMPERATURE))
+        await self.coordinator.xc.set_temperture(self._heating_zone, (float)(kwargs.get(ATTR_TEMPERATURE)) - self.wheel_temp)
         self.async_write_ha_state()
 
     async def async_set_hvac_mode(self, hvac_mode):
@@ -161,18 +162,17 @@ class xcThermostat(CoordinatorEntity, ClimateEntity):
 
     @callback
     def _update_attr(self) -> None:
-        if self._rm:
-            try:
-                dev = next(x for x in self.coordinator.data if x['id']=='xCo:'+self.id+'_u12')
-                self._attr_current_temperature = float(dev['value'])
-            except:
-                self._attr_current_temperature = None
-        else:
-            try:
-                dev = next(x for x in self.coordinator.data if x['id']=='xCo:'+self.id+'_u0')
-                self._attr_current_temperature = float(dev['value'])
-            except:
-                self._attr_current_temperature = None
+        try:
+            dev = next(x for x in self.coordinator.data if x['id']=='xCo:'+self.id+'_w')
+            self.wheel_temp = float(dev['value'])
+        except:
+            self.wheel_temp = 0.0
+        
+        try:
+            dev = next(x for x in self.coordinator.data if x['id']=='xCo:'+self.id+'_u0')
+            self._attr_current_temperature = float(dev['value'])
+        except:
+            self._attr_current_temperature = None
 
         _heating_status = self.coordinator.xc.heating_status
 
